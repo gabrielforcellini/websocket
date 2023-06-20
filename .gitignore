@@ -1,0 +1,11 @@
+# Node.js
+/node_modules
+
+# Express
+/public
+
+# Socket.IO
+/socket.io
+
+# Environment variables
+.env

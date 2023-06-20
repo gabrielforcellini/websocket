@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Quadro Compartilhado</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="identity-container">
+    <h1>Escolha de Identificação</h1>
+    <p>Você deseja se identificar ou continuar anônimo?</p>
+    <button onclick="chooseIdentity('anonymous')">Continuar Anônimo</button>
+    <button onclick="showUsernameInput()">Identificar-se</button>
+
+    <div class="username-input" id="usernameInput">
+      <label for="username">Digite seu nome de usuário:</label>
+      <input type="text" id="username" />
+      <button onclick="chooseIdentity(document.getElementById('username').value)">Próximo</button>
+    </div>
+  </div>
+
+  <div class="canvas-container" id="canvasContainer" style="display: none;">
+    <ul id="user-list"></ul>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <script>
+    const socket = io();
+
+    const identityContainer = document.querySelector('.identity-container');
+    const canvasContainer = document.querySelector('.canvas-container');
+    const usernameInput = document.getElementById('usernameInput');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    const userList = document.getElementById('user-list');
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    // Evento de escolha de identificação
+    function chooseIdentity(identity) {
+      socket.emit('chooseIdentity', identity);
+    }
+
+    // Exibir campo de entrada de nome de usuário
+    function showUsernameInput() {
+      usernameInput.style.display = 'block';
+    }
+
+    // Manipulador de evento para identidade escolhida
+    socket.on('identityChosen', () => {
+      identityContainer.style.display = 'none';
+      canvasContainer.style.display = 'block';
+    });
+
+    // Atualizar a lista de usuários conectados
+    socket.on('users-updated', (users) => {
+      userList.innerHTML = '';
+      users.forEach((user) => {
+        const listItem = document.createElement('li');
+        listItem.textContent = user;
+        userList.appendChild(listItem);
+      });
+    });
+
+    // Receber o histórico de desenhos
+    socket.on('drawingHistory', (history) => {
+      history.forEach((data) => {
+        const { x, y, prevX, prevY, color } = data;
+        drawLine(prevX, prevY, x, y, color);
+      });
+    });
+
+    // Receber eventos de desenho
+    socket.on('draw', (data) => {
+      const { x, y, prevX, prevY } = data;
+      drawLine(prevX, prevY, x, y);
+    });
+
+    // Manipuladores de eventos de desenho no canvas
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    function startDrawing(event) {
+      isDrawing = true;
+      [lastX, lastY] = [event.offsetX, event.offsetY];
+    }
+
+    function draw(event) {
+      if (!isDrawing) return;
+      const { offsetX, offsetY } = event;
+      drawLine(lastX, lastY, offsetX, offsetY);
+      socket.emit('draw', { prevX: lastX, prevY: lastY, x: offsetX, y: offsetY });
+      [lastX, lastY] = [offsetX, offsetY];
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+    }
+
+    function drawLine(prevX, prevY, x, y, color = '#000') {
+      context.beginPath();
+      context.moveTo(prevX, prevY);
+      context.lineTo(x, y);
+      context.strokeStyle = color;
+      context.lineWidth = 2;
+      context.stroke();
+      context.closePath();
+    }
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  </script>
+</body>
+
+</html>
